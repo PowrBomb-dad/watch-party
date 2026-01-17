@@ -1,7 +1,22 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; }
+        .controls { margin: 20px; }
+        input { padding: 10px; width: 300px; border-radius: 5px; border: none; }
+        button { padding: 10px 20px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; }
+    </style>
+</head>
 <body>
-    <div id="player"></div> <script src="/socket.io/socket.io.js"></script>
+    <div class="controls">
+        <input type="text" id="videoUrl" placeholder="Paste YouTube Link here...">
+        <button onclick="changeVideo()">Change Video</button>
+    </div>
+    
+    <div id="player"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         var socket = io();
         var player;
@@ -15,12 +30,26 @@
             player = new YT.Player('player', {
                 height: '390',
                 width: '640',
-                videoId: 'dQw4w9WgXcQ', // Replace with any video ID
+                videoId: 'dQw4w9WgXcQ', 
                 events: { 'onStateChange': onPlayerStateChange }
             });
         }
 
-        // When YOU change the video (play/pause), tell the server
+        // 1. Function to extract ID and tell everyone to change video
+        function changeVideo() {
+            const url = document.getElementById('videoUrl').value;
+            const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
+            
+            if (videoId) {
+                socket.emit('change_video', { videoId: videoId });
+            }
+        }
+
+        // 2. Listen for the "change_video" command from friends
+        socket.on('sync_video', (data) => {
+            player.loadVideoById(data.videoId);
+        });
+
         function onPlayerStateChange(event) {
             socket.emit('video_action', { 
                 status: event.data, 
@@ -28,11 +57,12 @@
             });
         }
 
-        // When the SERVER tells you a friend did something, sync your player
         socket.on('sync_action', (data) => {
             if (data.status === 1) player.playVideo();
             if (data.status === 2) player.pauseVideo();
-            player.seekTo(data.time);
+            if (Math.abs(player.getCurrentTime() - data.time) > 2) {
+                player.seekTo(data.time);
+            }
         });
     </script>
 </body>
