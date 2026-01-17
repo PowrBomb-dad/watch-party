@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <div id="player"></div> <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io();
+        var player;
+
+        // Load YouTube API
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(tag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '390',
+                width: '640',
+                videoId: 'dQw4w9WgXcQ', // Replace with any video ID
+                events: { 'onStateChange': onPlayerStateChange }
+            });
+        }
+
+        // When YOU change the video (play/pause), tell the server
+        function onPlayerStateChange(event) {
+            socket.emit('video_action', { 
+                status: event.data, 
+                time: player.getCurrentTime() 
+            });
+        }
+
+        // When the SERVER tells you a friend did something, sync your player
+        socket.on('sync_action', (data) => {
+            if (data.status === 1) player.playVideo();
+            if (data.status === 2) player.pauseVideo();
+            player.seekTo(data.time);
+        });
+    </script>
+</body>
+</html>
