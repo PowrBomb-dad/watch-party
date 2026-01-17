@@ -2,10 +2,12 @@
 <html>
 <head>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; }
-        .controls { margin: 20px; }
-        input { padding: 10px; width: 300px; border-radius: 5px; border: none; }
-        button { padding: 10px 20px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; }
+        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; padding-top: 50px; }
+        .controls { margin-bottom: 20px; }
+        input { padding: 12px; width: 350px; border-radius: 5px; border: none; font-size: 16px; }
+        button { padding: 12px 20px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; font-weight: bold; margin-left: 10px; }
+        button:hover { background: #cc0000; }
+        #player { border: 5px solid #333; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -21,23 +23,34 @@
         var socket = io();
         var player;
 
-        // Load YouTube API
+        // 1. Load YouTube API
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         document.head.appendChild(tag);
 
+        // 2. Handle incoming video changes from the server
+        socket.on('sync_video', (data) => {
+            if (player && player.loadVideoById) {
+                player.loadVideoById(data.videoId);
+            } else {
+                window.pendingVideoId = data.videoId;
+            }
+        });
+
+        // 3. Initialize player
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('player', {
                 height: '390',
                 width: '640',
-                videoId: 'dQw4w9WgXcQ', 
+                videoId: window.pendingVideoId || 'dQw4w9WgXcQ', 
                 events: { 'onStateChange': onPlayerStateChange }
             });
         }
 
-        // 1. Function to extract ID and tell everyone to change video
+        // 4. Function to tell everyone to change video
         function changeVideo() {
             const url = document.getElementById('videoUrl').value;
+            // Simple logic to grab the ID from a link
             const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
             
             if (videoId) {
@@ -45,11 +58,7 @@
             }
         }
 
-        // 2. Listen for the "change_video" command from friends
-        socket.on('sync_video', (data) => {
-            player.loadVideoById(data.videoId);
-        });
-
+        // 5. Tell server when you play/pause
         function onPlayerStateChange(event) {
             socket.emit('video_action', { 
                 status: event.data, 
@@ -57,6 +66,7 @@
             });
         }
 
+        // 6. Sync your player when friends play/pause
         socket.on('sync_action', (data) => {
             if (data.status === 1) player.playVideo();
             if (data.status === 2) player.pauseVideo();

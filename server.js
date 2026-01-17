@@ -3,20 +3,24 @@ const app = express();
 const http = require('http').Server(app);
 const io = require('socket.io')(http);
 
-// Serve your HTML file to your friends
 app.use(express.static(__dirname));
+
+// This is the server's "Memory"
+let currentVideoId = 'dQw4w9WgXcQ'; 
 
 io.on('connection', (socket) => {
     console.log('A friend joined!');
+
+    // Send the current video to the person who just joined
+    socket.emit('sync_video', { videoId: currentVideoId });
 
     socket.on('video_action', (data) => {
         socket.broadcast.emit('sync_action', data);
     });
 
-    // ADD THIS PART:
     socket.on('change_video', (data) => {
-        // This tells everyone to load the new Video ID
-        io.emit('sync_video', data); 
+        currentVideoId = data.videoId; // Update memory
+        io.emit('sync_video', data); // Tell EVERYONE to change
     });
 });
 
