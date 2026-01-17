@@ -140,8 +140,17 @@
         }
 
         function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED) socket.emit('next_video');
-            socket.emit('video_action', { status: event.data, time: player.getCurrentTime() });
+            // 0 means the video has finished
+            if (event.data === YT.PlayerState.ENDED) {
+                console.log("Video ended, requesting next video...");
+                socket.emit('next_video'); 
+            }
+
+        // This keeps the play/pause buttons synced for everyone else
+        socket.emit('video_action', { 
+            status: event.data, 
+            time: player.getCurrentTime() 
+        });
         }
 
         socket.on('sync_action', (data) => {
