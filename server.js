@@ -6,7 +6,7 @@ const io = require('socket.io')(http);
 app.use(express.static(__dirname));
 
 // This is the server's "Memory"
-let currentVideoId = 'dQw4w9WgXcQ'; 
+let currentVideoId = 'eQztz82Tgzk'; 
 
 io.on('connection', (socket) => {
     console.log('A friend joined!');
