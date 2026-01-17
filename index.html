@@ -14,12 +14,11 @@
         input { padding: 10px; width: 220px; border-radius: 5px; border: none; outline: none; color: black; }
         button { padding: 10px 15px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; font-weight: bold; }
 
-        /* THE FIX: MODERN ASPECT RATIO */
         .video-container {
             width: 95%;
             max-width: 800px;
-            aspect-ratio: 16 / 9; /* Cinema shape */
-            max-height: 70vh;    /* Never taller than 70% of the screen */
+            aspect-ratio: 16 / 9;
+            max-height: 70vh;
             margin: 0 auto; 
             border-radius: 10px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -98,6 +97,16 @@
             });
         }
 
+        // --- NEW HOST SYNC LOGIC ---
+        socket.on('get_time', (requesterId) => {
+            if (player && player.getCurrentTime) {
+                socket.emit('return_time', {
+                    time: player.getCurrentTime(),
+                    to: requesterId
+                });
+            }
+        });
+
         function sendMessage() {
             const input = document.getElementById('chat-input');
             if(input.value.trim() !== "") {
@@ -129,8 +138,15 @@
         function skipVideo() { socket.emit('next_video'); }
 
         socket.on('sync_video', (data) => {
-            if (player && player.loadVideoById) player.loadVideoById(data.videoId);
-            else window.pendingVideoId = data.videoId;
+            if (player && player.loadVideoById) {
+                // Only load if it's a different video to prevent refreshing
+                const currentId = player.getVideoData().video_id;
+                if (currentId !== data.videoId) {
+                    player.loadVideoById(data.videoId);
+                }
+            } else {
+                window.pendingVideoId = data.videoId;
+            }
         });
 
         function changeVideo() {
@@ -140,23 +156,24 @@
         }
 
         function onPlayerStateChange(event) {
-            // 0 means the video has finished
             if (event.data === YT.PlayerState.ENDED) {
-                console.log("Video ended, requesting next video...");
                 socket.emit('next_video'); 
             }
-
-        // This keeps the play/pause buttons synced for everyone else
-        socket.emit('video_action', { 
-            status: event.data, 
-            time: player.getCurrentTime() 
-        });
+            // Send sync action to everyone else
+            socket.emit('video_action', { 
+                status: event.data, 
+                time: player.getCurrentTime() 
+            });
         }
 
         socket.on('sync_action', (data) => {
+            if (!player) return;
             if (data.status === 1) player.playVideo();
             if (data.status === 2) player.pauseVideo();
-            if (Math.abs(player.getCurrentTime() - data.time) > 2) player.seekTo(data.time);
+            // Seek if more than 2 seconds out of sync
+            if (Math.abs(player.getCurrentTime() - data.time) > 2) {
+                player.seekTo(data.time);
+            }
         });
     </script>
 </body>

@@ -8,9 +8,21 @@ app.use(express.static(__dirname));
 let queue = ['XKWbUJh3Nks']; 
 
 io.on('connection', (socket) => {
-    // Sync new user with current state
+    // 1. Send the current video and queue to the newcomer
     socket.emit('sync_video', { videoId: queue[0] });
     socket.emit('update_queue', queue);
+
+    // 2. HOST SYNC: Ask the oldest connection for the current time
+    const activeSockets = Array.from(io.sockets.sockets.values());
+    if (activeSockets.length > 1) {
+        // Request time from the first person (Host) and tell them who to send it to
+        activeSockets[0].emit('get_time', socket.id);
+    }
+
+    // 3. Receive time from Host and pass it only to the newcomer
+    socket.on('return_time', (data) => {
+        io.to(data.to).emit('sync_action', { status: 1, time: data.time });
+    });
 
     socket.on('chat_message', (data) => {
         io.emit('display_message', data); 
