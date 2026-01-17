@@ -5,22 +5,41 @@ const io = require('socket.io')(http);
 
 app.use(express.static(__dirname));
 
-// This is the server's "Memory"
-let currentVideoId = 'XKWbUJh3Nks'; 
+// The server's memory is now a list
+let queue = ['XKWbUJh3Nks']; 
 
 io.on('connection', (socket) => {
     console.log('A friend joined!');
 
-    // Send the current video to the person who just joined
-    socket.emit('sync_video', { videoId: currentVideoId });
+    // Send the current video and the full list to the new person
+    socket.emit('sync_video', { videoId: queue[0] });
+    socket.emit('update_queue', queue);
 
     socket.on('video_action', (data) => {
         socket.broadcast.emit('sync_action', data);
     });
 
+    socket.on('add_to_queue', (videoId) => {
+        queue.push(videoId);
+        io.emit('update_queue', queue);
+    });
+
+    socket.on('next_video', () => {
+        if (queue.length > 1) {
+            queue.shift(); // Remove finished video
+            io.emit('sync_video', { videoId: queue[0] });
+            io.emit('update_queue', queue);
+        }
+    });
+
     socket.on('change_video', (data) => {
-        currentVideoId = data.videoId; // Update memory
-        io.emit('sync_video', data); // Tell EVERYONE to change
+        queue = [data.videoId]; // Reset queue to just this new video
+        io.emit('sync_video', data);
+        io.emit('update_queue', queue);
+    });
+
+    socket.on('chat_message', (data) => {
+        io.emit('display_message', data);
     });
 });
 
