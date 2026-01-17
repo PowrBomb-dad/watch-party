@@ -11,29 +11,47 @@
         }
 
         .controls { margin: 15px 0; }
-        input { padding: 10px; width: 220px; border-radius: 5px; border: none; outline: none; }
+        input { padding: 10px; width: 220px; border-radius: 5px; border: none; outline: none; color: black; }
         button { padding: 10px 15px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; font-weight: bold; }
 
-        /* FIXED VIDEO BOX SIZE */
+        /* THE FIX: MODERN ASPECT RATIO */
         .video-container {
-            position: relative; 
-            padding-bottom: 45%; /* Shorter height than before */
-            height: 0; overflow: hidden;
-            max-width: 700px; /* Narrower for a better fit */
-            margin: 0 auto; border-radius: 10px; 
+            width: 95%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9; /* Cinema shape */
+            max-height: 70vh;    /* Never taller than 70% of the screen */
+            margin: 0 auto; 
+            border-radius: 10px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             background: black;
+            overflow: hidden;
         }
-        .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .video-container iframe { width: 100%; height: 100%; border: none; }
 
-        .bottom-area { display: flex; max-width: 700px; margin: 20px auto; gap: 15px; }
-        #chat-container { flex: 2; background: rgba(0, 0, 0, 0.7); border-radius: 10px; padding: 15px; text-align: left; display: flex; flex-direction: column; }
-        #queue-container { flex: 1; background: rgba(0, 0, 0, 0.85); border-radius: 10px; padding: 15px; text-align: left; border: 1px solid #333; }
+        .bottom-area { 
+            display: flex; 
+            max-width: 800px; 
+            margin: 20px auto; 
+            gap: 15px; 
+            height: 250px; 
+        }
 
-        #chat-messages { height: 150px; overflow-y: auto; margin-bottom: 10px; font-size: 14px; }
+        #chat-container { 
+            flex: 2; background: rgba(0, 0, 0, 0.7); 
+            border-radius: 10px; padding: 15px; 
+            text-align: left; display: flex; flex-direction: column; 
+        }
+
+        #queue-container { 
+            flex: 1; background: rgba(0, 0, 0, 0.85); 
+            border-radius: 10px; padding: 15px; 
+            text-align: left; border: 1px solid #333; 
+        }
+
+        #chat-messages { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; font-size: 14px; }
         #queue-list { font-size: 12px; color: #bbb; height: 130px; overflow-y: auto; }
         .message b { color: #ff4d4d; }
-        #chat-input { width: 100%; box-sizing: border-box; margin-bottom: 5px; background: white; color: black; }
+        #chat-input { width: 100%; box-sizing: border-box; margin-bottom: 5px; padding: 8px; border-radius: 4px; border: none; }
     </style>
 </head>
 <body>
@@ -51,14 +69,14 @@
     <div class="bottom-area">
         <div id="chat-container">
             <div id="chat-messages"></div>
-            <input type="text" id="chat-input" placeholder="Chat here..." onkeypress="if(event.key === 'Enter') sendMessage()">
-            <button onclick="sendMessage()" style="width: 100%; font-size: 12px; padding: 5px;">Send</button>
+            <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" style="width: 100%; font-size: 12px; padding: 5px; background: #ff4d4d;">Send</button>
         </div>
 
         <div id="queue-container">
             <h4 style="margin: 0 0 10px 0; color: #ff4d4d; font-size: 14px;">Queue</h4>
             <div id="queue-list"></div>
-            <button onclick="skipVideo()" style="width: 100%; margin-top: 10px; background: #333; font-size: 10px;">Skip</button>
+            <button onclick="skipVideo()" style="width: 100%; margin-top: 10px; background: #333; font-size: 10px;">Skip Next</button>
         </div>
     </div>
 
@@ -69,19 +87,17 @@
         var myName = localStorage.getItem('watchPartyName') || prompt("What is your name?") || "Guest";
         localStorage.setItem('watchPartyName', myName);
 
-        // Load YouTube API
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         document.head.appendChild(tag);
 
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('player', {
-                videoId: 'XKWbUJh3Nks', 
+                videoId: window.pendingVideoId || 'XKWbUJh3Nks', 
                 events: { 'onStateChange': onPlayerStateChange }
             });
         }
 
-        // CHAT Logic
         function sendMessage() {
             const input = document.getElementById('chat-input');
             if(input.value.trim() !== "") {
@@ -96,7 +112,6 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 
-        // QUEUE Logic
         function addToQueue() {
             const url = document.getElementById('videoUrl').value;
             const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
@@ -108,13 +123,14 @@
 
         socket.on('update_queue', (queue) => {
             const list = document.getElementById('queue-list');
-            list.innerHTML = queue.map((id, i) => `<div>${i+1}. ${id.substring(0,8)}...</div>`).join('');
+            list.innerHTML = queue.map((id, i) => `<div>${i+1}. ${id.substring(0,11)} ${i==0?'<b style="color:lime;">(Live)</b>':''}</div>`).join('');
         });
 
         function skipVideo() { socket.emit('next_video'); }
 
         socket.on('sync_video', (data) => {
             if (player && player.loadVideoById) player.loadVideoById(data.videoId);
+            else window.pendingVideoId = data.videoId;
         });
 
         function changeVideo() {

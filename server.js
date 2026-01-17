@@ -8,11 +8,12 @@ app.use(express.static(__dirname));
 let queue = ['XKWbUJh3Nks']; 
 
 io.on('connection', (socket) => {
+    // Sync new user with current state
     socket.emit('sync_video', { videoId: queue[0] });
     socket.emit('update_queue', queue);
 
     socket.on('chat_message', (data) => {
-        io.emit('display_message', data); // Broadcast chat to everyone
+        io.emit('display_message', data); 
     });
 
     socket.on('add_to_queue', (videoId) => {
