@@ -5,15 +5,13 @@
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            text-align: center; 
-            color: white; 
-            padding: 20px;
+            text-align: center; color: white; padding: 20px;
             background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://i.ytimg.com/vi/Dj7mD9xpgoU/maxresdefault.jpg');
             background-size: cover; background-position: center; background-attachment: fixed; margin: 0; min-height: 100vh;
         }
 
         .controls { margin: 20px 0; }
-        input { padding: 12px; width: 250px; border-radius: 5px; border: none; background: rgba(255, 255, 255, 0.9); outline: none; }
+        input { padding: 12px; width: 250px; border-radius: 5px; border: none; background: rgba(255, 255, 255, 0.9); outline: none; color: black; }
         button { padding: 12px 20px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; font-weight: bold; }
 
         .video-container {
@@ -22,43 +20,53 @@
         }
         .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
-        /* CHAT STYLES */
-        #chat-container {
-            max-width: 800px; margin: 20px auto; background: rgba(0, 0, 0, 0.6);
-            border-radius: 10px; padding: 15px; text-align: left;
-        }
-        #chat-messages {
-            height: 200px; overflow-y: auto; border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 10px; padding-bottom: 10px;
-        }
+        /* SIDE BY SIDE LAYOUT */
+        .bottom-area { display: flex; max-width: 800px; margin: 20px auto; gap: 20px; }
+        
+        #chat-container { flex: 2; background: rgba(0, 0, 0, 0.6); border-radius: 10px; padding: 15px; text-align: left; }
+        #queue-container { flex: 1; background: rgba(0, 0, 0, 0.8); border-radius: 10px; padding: 15px; text-align: left; border: 1px solid #444; }
+
+        #chat-messages { height: 200px; overflow-y: auto; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px; }
+        #queue-list { font-size: 13px; color: #ddd; height: 180px; overflow-y: auto; }
+        
         .message { margin-bottom: 8px; font-size: 14px; }
         .message b { color: #ff4d4d; }
-        #chat-input { width: calc(100% - 100px); background: rgba(255,255,255,0.1); color: white; border: 1px solid #444; }
+        #chat-input { width: 60%; background: rgba(255,255,255,0.1); color: white; border: 1px solid #444; }
     </style>
 </head>
 <body>
+
     <div class="controls">
-        <input type="text" id="videoUrl" placeholder="YouTube Link...">
-        <button onclick="changeVideo()">Change Video</button>
+        <input type="text" id="videoUrl" placeholder="Paste YouTube Link...">
+        <button onclick="addToQueue()">Add to Queue</button>
+        <button onclick="changeVideo()" style="background: #444; font-size: 11px;">Play Now</button>
     </div>
     
     <div class="video-container">
         <div id="player"></div>
     </div>
 
-    <div id="chat-container">
-        <div id="chat-messages"></div>
-        <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendMessage()">
-        <button onclick="sendMessage()" style="padding: 10px; font-size: 12px;">Send</button>
+    <div class="bottom-area">
+        <div id="chat-container">
+            <div id="chat-messages"></div>
+            <input type="text" id="chat-input" placeholder="Chat..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" style="padding: 10px; font-size: 12px;">Send</button>
+        </div>
+
+        <div id="queue-container">
+            <h4 style="margin: 0 0 10px 0; color: #ff4d4d;">Up Next</h4>
+            <div id="queue-list"></div>
+            <button onclick="skipVideo()" style="width: 100%; margin-top: 10px; background: #333; font-size: 11px;">Skip Video</button>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         var socket = io();
         var player;
-        var myName = prompt("What is your name?") || "Guest";
+        var myName = localStorage.getItem('watchPartyName') || prompt("What is your name?") || "Guest";
+        localStorage.setItem('watchPartyName', myName);
 
-        // 1. YouTube API Setup
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         document.head.appendChild(tag);
@@ -70,7 +78,26 @@
             });
         }
 
-        // 2. CHAT FUNCTIONS
+        // QUEUE LOGIC
+        function addToQueue() {
+            const url = document.getElementById('videoUrl').value;
+            const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
+            if (videoId) {
+                socket.emit('add_to_queue', videoId);
+                document.getElementById('videoUrl').value = "";
+            }
+        }
+
+        function skipVideo() {
+            socket.emit('next_video');
+        }
+
+        socket.on('update_queue', (queue) => {
+            const list = document.getElementById('queue-list');
+            list.innerHTML = queue.map((id, i) => `<div>${i+1}. ${id.substring(0,11)} ${i==0?'<b>(Live)</b>':''}</div>`).join('');
+        });
+
+        // CHAT
         function sendMessage() {
             const input = document.getElementById('chat-input');
             if(input.value.trim() !== "") {
@@ -82,10 +109,10 @@
         socket.on('display_message', (data) => {
             const chatBox = document.getElementById('chat-messages');
             chatBox.innerHTML += `<div class="message"><b>${data.name}:</b> ${data.text}</div>`;
-            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to bottom
+            chatBox.scrollTop = chatBox.scrollHeight;
         });
 
-        // 3. VIDEO SYNC FUNCTIONS (Keep these as they were)
+        // SYNC
         socket.on('sync_video', (data) => {
             if (player && player.loadVideoById) player.loadVideoById(data.videoId);
             else window.pendingVideoId = data.videoId;
@@ -98,6 +125,10 @@
         }
 
         function onPlayerStateChange(event) {
+            // Auto-play next when video ends
+            if (event.data === YT.PlayerState.ENDED) {
+                socket.emit('next_video');
+            }
             socket.emit('video_action', { status: event.data, time: player.getCurrentTime() });
         }
 
