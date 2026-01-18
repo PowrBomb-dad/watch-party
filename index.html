@@ -6,7 +6,7 @@
         body { 
             font-family: 'Segoe UI', sans-serif; 
             text-align: center; color: white; padding: 10px;
-            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://wallpaper.forfun.com/fetch/f3/f353a399e113fa62ff6911011b0170ea.jpeg');
+            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://brobible.com/wp-content/uploads/2025/12/daniel-day-lewis-paul-dano.jpg');
             background-size: cover; background-position: center; background-attachment: fixed; margin: 0; min-height: 100vh;
         }
 
@@ -97,7 +97,6 @@
             });
         }
 
-        // --- NEW HOST SYNC LOGIC ---
         socket.on('get_time', (requesterId) => {
             if (player && player.getCurrentTime) {
                 socket.emit('return_time', {
@@ -139,10 +138,16 @@
 
         socket.on('sync_video', (data) => {
             if (player && player.loadVideoById) {
-                // Only load if it's a different video to prevent refreshing
                 const currentId = player.getVideoData().video_id;
                 if (currentId !== data.videoId) {
-                    player.loadVideoById(data.videoId);
+                    // AUTOPLAY FIX: Use an object to load and suggest autoplay
+                    player.loadVideoById({
+                        videoId: data.videoId,
+                        startSeconds: 0
+                    });
+                    
+                    // Force play after a short delay
+                    setTimeout(() => { player.playVideo(); }, 800);
                 }
             } else {
                 window.pendingVideoId = data.videoId;
@@ -156,10 +161,15 @@
         }
 
         function onPlayerStateChange(event) {
+            // AUTOPLAY FIX: Handle video end and unstarted states
             if (event.data === YT.PlayerState.ENDED) {
                 socket.emit('next_video'); 
             }
-            // Send sync action to everyone else
+            
+            if (event.data === YT.PlayerState.UNSTARTED) {
+                player.playVideo();
+            }
+
             socket.emit('video_action', { 
                 status: event.data, 
                 time: player.getCurrentTime() 
@@ -170,7 +180,6 @@
             if (!player) return;
             if (data.status === 1) player.playVideo();
             if (data.status === 2) player.pauseVideo();
-            // Seek if more than 2 seconds out of sync
             if (Math.abs(player.getCurrentTime() - data.time) > 2) {
                 player.seekTo(data.time);
             }
