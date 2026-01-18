@@ -8,26 +8,24 @@ app.use(express.static(__dirname));
 let queue = ['VeblVdUKIcw']; 
 
 io.on('connection', (socket) => {
-    // Send the queue list immediately so they see what's coming up
     socket.emit('update_queue', queue);
 
     const activeSockets = Array.from(io.sockets.sockets.values());
 
-    // FIX: Instead of always sending 'sync_video' (which triggers a refresh),
-    // we only do it if they are the FIRST person. 
-    // If others are already there, we ask the Host for the time instead.
     if (activeSockets.length > 1) {
-        // Request time from Host; the return_time logic below will handle the rest
+        // Ask Host for time to sync newcomer
         activeSockets[0].emit('get_time', socket.id);
     } else {
-        // First person joins? Load the default video
         socket.emit('sync_video', { videoId: queue[0] });
     }
 
     socket.on('return_time', (data) => {
-        // When the host returns time, we also include the current videoId
-        // to ensure the newcomer is on the exact same page
-        io.to(data.to).emit('sync_video', { videoId: queue[0] });
+        // NEW FIX: Pass the current host time and a forceSync flag
+        io.to(data.to).emit('sync_video', { 
+            videoId: queue[0], 
+            time: data.time, 
+            forceSync: true 
+        });
         io.to(data.to).emit('sync_action', { status: 1, time: data.time });
     });
 
