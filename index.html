@@ -9,44 +9,18 @@
             background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://brobible.com/wp-content/uploads/2025/12/daniel-day-lewis-paul-dano.jpg');
             background-size: cover; background-position: center; background-attachment: fixed; margin: 0; min-height: 100vh;
         }
-
         .controls { margin: 15px 0; }
         input { padding: 10px; width: 220px; border-radius: 5px; border: none; outline: none; color: black; }
         button { padding: 10px 15px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; font-weight: bold; }
-
         .video-container {
-            width: 95%;
-            max-width: 800px;
-            aspect-ratio: 16 / 9;
-            max-height: 70vh;
-            margin: 0 auto; 
-            border-radius: 10px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            background: black;
-            overflow: hidden;
+            width: 95%; max-width: 800px; aspect-ratio: 16 / 9; max-height: 70vh;
+            margin: 0 auto; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: black; overflow: hidden;
         }
         .video-container iframe { width: 100%; height: 100%; border: none; }
-
-        .bottom-area { 
-            display: flex; 
-            max-width: 800px; 
-            margin: 20px auto; 
-            gap: 15px; 
-            height: 250px; 
-        }
-
-        #chat-container { 
-            flex: 2; background: rgba(0, 0, 0, 0.7); 
-            border-radius: 10px; padding: 15px; 
-            text-align: left; display: flex; flex-direction: column; 
-        }
-
-        #queue-container { 
-            flex: 1; background: rgba(0, 0, 0, 0.85); 
-            border-radius: 10px; padding: 15px; 
-            text-align: left; border: 1px solid #333; 
-        }
-
+        .bottom-area { display: flex; max-width: 800px; margin: 20px auto; gap: 15px; height: 250px; }
+        #chat-container { flex: 2; background: rgba(0, 0, 0, 0.7); border-radius: 10px; padding: 15px; text-align: left; display: flex; flex-direction: column; }
+        #queue-container { flex: 1; background: rgba(0, 0, 0, 0.85); border-radius: 10px; padding: 15px; text-align: left; border: 1px solid #333; }
         #chat-messages { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; font-size: 14px; }
         #queue-list { font-size: 12px; color: #bbb; height: 130px; overflow-y: auto; }
         .message b { color: #ff4d4d; }
@@ -71,7 +45,6 @@
             <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendMessage()">
             <button onclick="sendMessage()" style="width: 100%; font-size: 12px; padding: 5px; background: #ff4d4d;">Send</button>
         </div>
-
         <div id="queue-container">
             <h4 style="margin: 0 0 10px 0; color: #ff4d4d; font-size: 14px;">Queue</h4>
             <div id="queue-list"></div>
@@ -138,15 +111,13 @@
 
         socket.on('sync_video', (data) => {
             if (player && player.loadVideoById) {
+                // FIX: Check current ID. If it's already playing, DO NOT reload.
                 const currentId = player.getVideoData().video_id;
                 if (currentId !== data.videoId) {
-                    // AUTOPLAY FIX: Use an object to load and suggest autoplay
                     player.loadVideoById({
                         videoId: data.videoId,
                         startSeconds: 0
                     });
-                    
-                    // Force play after a short delay
                     setTimeout(() => { player.playVideo(); }, 800);
                 }
             } else {
@@ -161,15 +132,12 @@
         }
 
         function onPlayerStateChange(event) {
-            // AUTOPLAY FIX: Handle video end and unstarted states
             if (event.data === YT.PlayerState.ENDED) {
                 socket.emit('next_video'); 
             }
-            
             if (event.data === YT.PlayerState.UNSTARTED) {
                 player.playVideo();
             }
-
             socket.emit('video_action', { 
                 status: event.data, 
                 time: player.getCurrentTime() 

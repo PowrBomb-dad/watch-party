@@ -1,0 +1,323 @@
+/* ============================================================
+  PROJECT CONFIGURATION (package.json breakdown)
+  ============================================================
+*/
+
+{
+  "name": "watch-party",           // The unique ID of your app (no spaces/caps)
+  "version": "1.0.0",              // Your app's version: [Major].[Minor].[Patch]
+  "description": "",               // A short summary of what the site does
+  "main": "index.js",              // The 'brain' file (you can change this to server.js)
+  
+  "scripts": {                     // Shortcuts for terminal commands
+    "test": "echo \"Error: no test specified\" && exit 1" 
+  },
+
+  "keywords": [],                  // Search terms to find your project
+  "author": "",                    // Your name goes here!
+  "license": "ISC",                // Open-source legal permission (ISC is standard)
+  "type": "commonjs",              // Tells Node to use 'require()' for imports
+  
+  "dependencies": {                // THE TOOLBOX: External code your app needs
+    "express": "^5.2.1",           // Handles the website routing and file serving
+    "socket.io": "^4.8.3"          // Power the real-time chat and video syncing
+  }
+}
+
+/* NOTE: If you try to put these // comments directly into 
+  package.json, VS Code might show red errors. 
+  JSON files are strictly for data, not notes!
+*/
+
+File,Analogy,Purpose
+package.json,Shopping List,Lists what you want.
+package-lock.json,Receipt,Records exactly what you got.
+node_modules/,The Groceries,The actual heavy code folders (too big to upload).
+
+Line-by-Line Breakdown (Key Sections)
+1. The Header
+JSON
+"name": "watch-party",
+"version": "1.0.0",
+"lockfileVersion": 3,
+lockfileVersion: Tells Node.js which "language" the lockfile is written in (Version 3 is the modern standard).
+
+2. The "Packages" Section
+This is where the magic happens. Every dependency is listed with a "Resolution" and an "Integrity" key.
+
+resolved: The exact URL where the code was downloaded from (usually npmjs.org).
+
+integrity: This is a long string of random letters (a "hash"). It acts like a digital fingerprint. If a hacker tries to change the code in the Express library, the fingerprint won't match, and the computer will refuse to install it.
+
+dependencies: This lists the "sub-tools." Even though you only installed 2 tools (Express and Socket.io), those tools need other tools to work. Your lockfile tracks all hundreds of them.
+
+
+// 1. IMPORT LIBRARIES: Load the Express framework to handle web requests
+const express = require('express');
+
+// 2. INITIALIZE APP: Create an instance of an Express application
+const app = express();
+
+// 3. CREATE SERVER: Connect Express to the built-in Node.js HTTP module
+const http = require('http').Server(app);
+
+// 4. SETUP SOCKETS: Initialize Socket.io so it can listen for real-time events on our server
+const io = require('socket.io')(http);
+
+// 5. SERVE FILES: Tell the server to share everything in this folder (like index.html) with visitors
+app.use(express.static(__dirname));
+
+// 6. STARTING QUEUE: Create a list of video IDs; starts with one default video
+let queue = ['XKWbUJh3Nks']; 
+
+// 7. CONNECTION EVENT: This block runs every time a new person opens your website
+io.on('connection', (socket) => {
+    
+    // 8. INITIAL SYNC: Send the current video ID and the full list to the person who just joined
+    socket.emit('sync_video', { videoId: queue[0] });
+    socket.emit('update_queue', queue);
+
+    // 9. FIND ACTIVE USERS: Convert the list of connected people into an array we can work with
+    const activeSockets = Array.from(io.sockets.sockets.values());
+
+    // 10. HOST CHECK: If there is more than 1 person, we need to sync the new person's time
+    if (activeSockets.length > 1) {
+        // 11. REQUEST TIME: Ask the very first person (the "Host") to share their current video timestamp
+        activeSockets[0].emit('get_time', socket.id);
+    }
+
+    // 12. RECEIVE TIMESTAMP: When the Host sends their time back to the server...
+    socket.on('return_time', (data) => {
+        // 13. SEND TO NEWCOMER: Send that specific time only to the person who just joined
+        io.to(data.to).emit('sync_action', { status: 1, time: data.time });
+    });
+
+    // 14. CHAT LOGIC: When someone sends a message, tell the server to broadcast it to EVERYONE
+    socket.on('chat_message', (data) => {
+        io.emit('display_message', data); 
+    });
+
+    // 15. ADD TO LIST: When a user submits a link, push the ID to the queue and update everyone's list
+    socket.on('add_to_queue', (videoId) => {
+        queue.push(videoId);
+        io.emit('update_queue', queue);
+    });
+
+    // 16. AUTOPLAY/SKIP: Logic for moving to the next video in the array
+    socket.on('next_video', () => {
+        if (queue.length > 1) {
+            queue.shift(); // Remove the finished video (the first item)
+            io.emit('sync_video', { videoId: queue[0] }); // Tell everyone to play the new first video
+            io.emit('update_queue', queue); // Refresh the queue display for everyone
+        }
+    });
+
+    // 17. PLAY NOW: Clears the queue and forces a specific video to play immediately
+    socket.on('change_video', (data) => {
+        queue = [data.videoId];
+        io.emit('sync_video', data);
+        io.emit('update_queue', queue);
+    });
+
+    // 18. SYNC ACTIONS: When someone clicks Play or Pause, send that command to everyone ELSE
+    socket.on('video_action', (data) => {
+        socket.broadcast.emit('sync_action', data);
+    });
+});
+
+// 19. CHOOSE PORT: Use the hosting service's port (like on Render) or 3000 if running locally
+const PORT = process.env.PORT || 3000;
+
+// 20. LAUNCH: Start the server and print a message to the terminal so we know it's working
+http.listen(PORT, () => console.log('Server running on port ' + PORT));
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* DESIGN: Sets the dark theme, background image, and font */
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            text-align: center; color: white; padding: 10px;
+            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://brobible.com/wp-content/uploads/2025/12/daniel-day-lewis-paul-dano.jpg');
+            background-size: cover; background-position: center; background-attachment: fixed; margin: 0; min-height: 100vh;
+        }
+
+        /* INPUTS: Styles the link box and red buttons */
+        .controls { margin: 15px 0; }
+        input { padding: 10px; width: 220px; border-radius: 5px; border: none; outline: none; color: black; }
+        button { padding: 10px 15px; border-radius: 5px; border: none; background: #ff0000; color: white; cursor: pointer; font-weight: bold; }
+
+        /* VIDEO BOX: Forces the YouTube player to stay in a 16:9 cinema shape */
+        .video-container {
+            width: 95%; max-width: 800px; aspect-ratio: 16 / 9; max-height: 70vh;
+            margin: 0 auto; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: black; overflow: hidden;
+        }
+        .video-container iframe { width: 100%; height: 100%; border: none; }
+
+        /* LAYOUT: Creates the side-by-side view for Chat and Queue */
+        .bottom-area { display: flex; max-width: 800px; margin: 20px auto; gap: 15px; height: 250px; }
+
+        /* CHAT: Transparent black box with auto-scrolling text */
+        #chat-container { flex: 2; background: rgba(0, 0, 0, 0.7); border-radius: 10px; padding: 15px; text-align: left; display: flex; flex-direction: column; }
+        
+        /* QUEUE: Slimmer box on the right to show upcoming videos */
+        #queue-container { flex: 1; background: rgba(0, 0, 0, 0.85); border-radius: 10px; padding: 15px; text-align: left; border: 1px solid #333; }
+
+        #chat-messages { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; font-size: 14px; }
+        #queue-list { font-size: 12px; color: #bbb; height: 130px; overflow-y: auto; }
+        .message b { color: #ff4d4d; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <input type="text" id="videoUrl" placeholder="YouTube Link...">
+        <button onclick="addToQueue()">Add to Queue</button>
+        <button onclick="changeVideo()" style="background: #444;">Play Now</button>
+    </div>
+    
+    <div class="video-container">
+        <div id="player"></div>
+    </div>
+
+    <div class="bottom-area">
+        <div id="chat-container">
+            <div id="chat-messages"></div>
+            <input type="text" id="chat-input" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" style="width: 100%; font-size: 12px; padding: 5px; background: #ff4d4d;">Send</button>
+        </div>
+
+        <div id="queue-container">
+            <h4 style="margin: 0 0 10px 0; color: #ff4d4d; font-size: 14px;">Queue</h4>
+            <div id="queue-list"></div>
+            <button onclick="skipVideo()" style="width: 100%; margin-top: 10px; background: #333; font-size: 10px;">Skip Next</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Connect to the server.js file
+        var socket = io();
+        var player;
+        
+        // NAME LOGIC: Check if user has a saved name; if not, ask for one
+        var myName = localStorage.getItem('watchPartyName') || prompt("What is your name?") || "Guest";
+        localStorage.setItem('watchPartyName', myName);
+
+        // YOUTUBE API: Loads the official YouTube script into the page
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(tag);
+
+        // INITIALIZE PLAYER: Runs automatically once the YouTube script loads
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                videoId: window.pendingVideoId || 'XKWbUJh3Nks', 
+                events: { 'onStateChange': onPlayerStateChange }
+            });
+        }
+
+        // HOST SYNC: When the server asks "what time is it?", this browser replies
+        socket.on('get_time', (requesterId) => {
+            if (player && player.getCurrentTime) {
+                socket.emit('return_time', {
+                    time: player.getCurrentTime(),
+                    to: requesterId
+                });
+            }
+        });
+
+        // CHAT SEND: Packages the user's name and text to send to the server
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            if(input.value.trim() !== "") {
+                socket.emit('chat_message', { name: myName, text: input.value });
+                input.value = "";
+            }
+        }
+
+        // CHAT RECEIVE: Adds new messages to the chat box and scrolls to the bottom
+        socket.on('display_message', (data) => {
+            const chatBox = document.getElementById('chat-messages');
+            chatBox.innerHTML += `<div><b>${data.name}:</b> ${data.text}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        // ADD VIDEO: Extracts the ID from a YouTube URL and sends it to the server queue
+        function addToQueue() {
+            const url = document.getElementById('videoUrl').value;
+            const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
+            if (videoId) {
+                socket.emit('add_to_queue', videoId);
+                document.getElementById('videoUrl').value = "";
+            }
+        }
+
+        // QUEUE UI: Redraws the list on the right whenever the server's list changes
+        socket.on('update_queue', (queue) => {
+            const list = document.getElementById('queue-list');
+            list.innerHTML = queue.map((id, i) => `<div>${i+1}. ${id.substring(0,11)} ${i==0?'<b style="color:lime;">(Live)</b>':''}</div>`).join('');
+        });
+
+        function skipVideo() { socket.emit('next_video'); }
+
+        // VIDEO CHANGE: Physically loads a new video file into the player
+        socket.on('sync_video', (data) => {
+            if (player && player.loadVideoById) {
+                const currentId = player.getVideoData().video_id;
+                if (currentId !== data.videoId) {
+                    // Uses suggested settings to help bypass autoplay blocks
+                    player.loadVideoById({
+                        videoId: data.videoId,
+                        startSeconds: 0
+                    });
+                    setTimeout(() => { player.playVideo(); }, 800);
+                }
+            } else {
+                // If player isn't ready yet, save the ID for when it is
+                window.pendingVideoId = data.videoId;
+            }
+        });
+
+        function changeVideo() {
+            const url = document.getElementById('videoUrl').value;
+            const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
+            if (videoId) socket.emit('change_video', { videoId: videoId });
+        }
+
+        // PLAYER WATCHER: Detects when YOU play, pause, or finish a video
+        function onPlayerStateChange(event) {
+            // Trigger next video in queue when current one ends
+            if (event.data === YT.PlayerState.ENDED) {
+                socket.emit('next_video'); 
+            }
+            
+            // Kickstart video if it's stuck in 'unstarted' mode
+            if (event.data === YT.PlayerState.UNSTARTED) {
+                player.playVideo();
+            }
+
+            // Tell the server your current status so it can tell others to sync
+            socket.emit('video_action', { 
+                status: event.data, 
+                time: player.getCurrentTime() 
+            });
+        }
+
+        // SYNC HANDLER: Receives play/pause/seek commands from other users
+        socket.on('sync_action', (data) => {
+            if (!player) return;
+            if (data.status === 1) player.playVideo(); // 1 = Playing
+            if (data.status === 2) player.pauseVideo(); // 2 = Paused
+            
+            // If you are more than 2 seconds away from others, jump to their time
+            if (Math.abs(player.getCurrentTime() - data.time) > 2) {
+                player.seekTo(data.time);
+            }
+        });
+    </script>
+</body>
+</html>
